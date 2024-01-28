@@ -1,45 +1,63 @@
-require('dotenv').config() // require .env 
-
+// Require necessary modules
+require('dotenv').config(); // Require .env
 const express = require('express');
-const PORT = 3000;
-const path = require('path'); // require path
-const cookieParser = require('cookie-parser');  // require cookoe parser
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const { connectMonggose } = require('./config/mongoose');
+const expressLayouts = require('express-ejs-layouts');
+const passport = require('passport');
+const MongoStore = require('connect-mongo');
 
-const { connectMonggose } = require('./config/mongoose'); // require db
-const app = express(); 
+// Create Express app
+const app = express();
+
+// Connect to MongoDB
 connectMonggose();
 
-const expressLayouts = require('express-ejs-layouts'); // require express-ejs-layout
+// flash messages package and middleware
+const flash = require('connect-flash');
+const myMware=require('./config/middleware');
 
-const MongoStore = require('connect-mongo'); // require connect-mongo
+// Set up view engine and static files
+app.use(expressLayouts);
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
+app.use(express.static('assets'));
 
-const session = require('express-session'); // require session
-
-app.use(expressLayouts) // require ejs layout
-app.set('view engine', 'ejs'); // set view engine
-app.set('views', path.join(__dirname, 'views')) // set path
-
-app.use(express.urlencoded({ extended: false }));  // use urlencoded
-
-app.use(cookieParser()) // use cookie parser
-
-app.use(express.static('assets')) // use static files 
-
-// use session
+// Use express-session for session management
 app.use(
-    session({
-        secret: process.env.SECRET,
-        resave: true,
-        saveUninitialized: true
-    })
+  require('express-session')({
+    secret: process.env.SECRET_KEY,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 24 * 60 * 60 * 1000,
+      secure: false,
+    },
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGODB_URL,
+    }),
+  })
 );
 
-app.use('/', require('./routes/index-routes')); // use routes
+// connect-flash middleware
+app.use(flash());
+app.use(myMware.setFlash);
 
-// run surver on port 
+// Initialize passport after configuring session
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Use routes
+app.use('/', require('./routes/index-routes'));
+
+// Run server on port
+const PORT = 3000;
 app.listen(PORT, (err) => {
-    if (err) {
-        console.log(err);
-    }
-    console.log(`Running on port :: 3000`);
-})
+  if (err) {
+    console.log(err);
+  }
+  console.log(`Running on port :: ${PORT}`);
+});
